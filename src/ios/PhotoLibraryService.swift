@@ -1,4 +1,5 @@
 import Photos
+import UIKit
 import Foundation
 import AssetsLibrary // TODO: needed for deprecated functionality
 import MobileCoreServices
