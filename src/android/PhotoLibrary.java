@@ -28,6 +28,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class PhotoLibrary extends CordovaPlugin {
@@ -49,13 +50,11 @@ public class PhotoLibrary extends CordovaPlugin {
 	public static final String ACTION_SAVE_VIDEO = "saveVideo";
 
 	public CallbackContext callbackContext;
-	private final static ArrayList<String>
+	private final static List<String>
 			storageReadPermissions,
 			storageWritePermissions,
 			imageReadPermissions,
 			imageWritePermissions,
-			audioReadPermissions,
-			audioWritePermissions,
 			videoReadPermissions,
 			videoWritePermissions;
 
@@ -64,54 +63,28 @@ public class PhotoLibrary extends CordovaPlugin {
 			storageReadPermissions = new ArrayList<>();
 			storageWritePermissions = new ArrayList<>();
 
-			imageReadPermissions = new ArrayList<String>(storageReadPermissions) {{
-				add(Manifest.permission.READ_MEDIA_IMAGES);
-			}};
-			imageWritePermissions = new ArrayList<>(imageReadPermissions);
+			imageReadPermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_IMAGES);
+			imageWritePermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_IMAGES);
 
-			audioReadPermissions = new ArrayList<String>(storageReadPermissions) {{
-				add(Manifest.permission.READ_MEDIA_AUDIO);
-			}};
-
-			audioWritePermissions = new ArrayList<String>(audioReadPermissions) {{
-				add(Manifest.permission.RECORD_AUDIO);
-				addAll(storageWritePermissions);
-			}};
-
-			videoReadPermissions = new ArrayList<String>(storageReadPermissions) {{
-				add(Manifest.permission.READ_MEDIA_VIDEO);
-			}};
-
-			videoWritePermissions = new ArrayList<String>(videoReadPermissions) {{
-				addAll(storageWritePermissions);
-			}};
+			videoReadPermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_VIDEO);
+			videoWritePermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_VIDEO);
 
 		} else { //sdk < 33
 
-			storageReadPermissions = new ArrayList<String>() {{
-				add(Manifest.permission.READ_EXTERNAL_STORAGE);
+			storageReadPermissions = Collections.singletonList(Manifest.permission.READ_EXTERNAL_STORAGE);
+			storageWritePermissions = new ArrayList<String>(storageReadPermissions) {{
+				add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
 			}};
-			storageWritePermissions = new ArrayList<String>(storageReadPermissions) {
-				{
-					add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-				}
-			};
 
 			imageReadPermissions = new ArrayList<>(storageReadPermissions);
-			imageWritePermissions = new ArrayList<String>(imageReadPermissions) {
-				{
-					addAll(storageWritePermissions);
-				}
-			};
-
-			audioReadPermissions = new ArrayList<>(storageReadPermissions);
-			audioWritePermissions = new ArrayList<String>(audioReadPermissions) {{
-				add(Manifest.permission.RECORD_AUDIO);
+			imageWritePermissions = new ArrayList<String>() {{
+				addAll(imageReadPermissions);
 				addAll(storageWritePermissions);
 			}};
 
-			videoReadPermissions = new ArrayList<String>(storageReadPermissions);
-			videoWritePermissions = new ArrayList<String>(videoReadPermissions) {{
+			videoReadPermissions = new ArrayList<>(storageReadPermissions);
+			videoWritePermissions = new ArrayList<String>() {{
+				addAll(videoReadPermissions);
 				addAll(storageWritePermissions);
 			}};
 		}
@@ -357,22 +330,13 @@ public class PhotoLibrary extends CordovaPlugin {
 				final String url = args.getString(0);
 				final String album = args.getString(1);
 
-				//if (!cordova.hasPermission(WRITE_EXTERNAL_STORAGE)) {
 				if (isMissingPermissions(imageWritePermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
 				}
 
-				service.saveImage(getContext(), cordova, url, album, new PhotoLibraryService.JSONObjectRunnable() {
-					@Override
-					public void run(JSONObject result, @Nullable Exception e) {
-
-						if (e != null) {
-							callbackContext.error(e.getMessage());
-							return;
-						}
-					}
-				});
+				service.saveImage(getContext(), cordova, url, album, result
+						-> callbackContext.success(result));
 
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -388,7 +352,6 @@ public class PhotoLibrary extends CordovaPlugin {
 				final String url = args.getString(0);
 				final String album = args.getString(1);
 
-				//if (!cordova.hasPermission(WRITE_EXTERNAL_STORAGE)) {
 				if (isMissingPermissions(videoWritePermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
@@ -508,13 +471,6 @@ public class PhotoLibrary extends CordovaPlugin {
 		resultJSON.put("mimeType", pictureData.mimeType);
 
 		return new PluginResult(status, resultJSON);
-
-// This is old good code that worked with cordova-android 5.x
-//    return new PluginResult(status,
-//      Arrays.asList(
-//        new PluginResult(status, pictureData.getBytes()),
-//        new PluginResult(status, pictureData.getMimeType())));
-
 	}
 
 	private void requestAuthorization(boolean read, boolean write) {
@@ -522,11 +478,13 @@ public class PhotoLibrary extends CordovaPlugin {
 		List<String> permissions = new ArrayList<>();
 
 		if (read) {
-			permissions.addAll(storageReadPermissions);
+			permissions.addAll(imageReadPermissions);
+			permissions.addAll(videoReadPermissions);
 		}
 
 		if (write) {
-			permissions.addAll(storageWritePermissions);
+			permissions.addAll(imageWritePermissions);
+			permissions.addAll(videoWritePermissions);
 		}
 
 		cordova.requestPermissions(this, REQUEST_AUTHORIZATION_REQ_CODE, permissions.toArray(new String[0]));
@@ -544,22 +502,15 @@ public class PhotoLibrary extends CordovaPlugin {
 		return result;
 	}
 
-	private boolean isMissingPermissions(ArrayList<String> permissions) {
-		ArrayList<String> missingPermissions = new ArrayList<>();
+	private boolean isMissingPermissions(List<String> permissions) {
+		List<String> missingPermissions = new ArrayList<>();
 		for (String permission : permissions) {
 			if (!PermissionHelper.hasPermission(this, permission)) {
 				missingPermissions.add(permission);
 			}
 		}
 
-		boolean isMissingPermissions = missingPermissions.size() > 0;
-		if (isMissingPermissions) {
-			String[] missing = missingPermissions.toArray(new String[0]);
-
-			//TODO: AUTO REQUEST?
-			PermissionHelper.requestPermissions(this, REQUEST_AUTHORIZATION_REQ_CODE, missing);
-		}
-		return isMissingPermissions;
+		return missingPermissions.size() > 0;
 	}
 
 }

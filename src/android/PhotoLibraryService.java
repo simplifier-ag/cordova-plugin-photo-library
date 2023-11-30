@@ -15,8 +15,6 @@ import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.util.Base64;
 
-import androidx.annotation.Nullable;
-
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaResourceApi;
 import org.json.JSONArray;
@@ -38,8 +36,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,8 +53,7 @@ public class PhotoLibraryService {
 	//private LruCache<String, byte[]> imageCache = new LruCache<String, byte[]>(cacheSize);
 
 	protected PhotoLibraryService() {
-		dateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-		dateFormatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+		dateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());
 	}
 
 	public static final String PERMISSION_ERROR = "Permission Denial: This application is not allowed to access Photo data.";
@@ -168,7 +165,7 @@ public class PhotoLibraryService {
 
 		InputStream is = context.getContentResolver().openInputStream(imageUri);
 
-		if (mimeType.equals("image/jpeg")) {
+		if (mimeType != null && mimeType.equals("image/jpeg")) {
 			int orientation = getImageOrientation(imageFile);
 			if (orientation > 1) { // Image should be rotated
 
@@ -183,6 +180,7 @@ public class PhotoLibraryService {
 				// Converting to PNG can be an option to prevent data loss, but in price of very large files.
 				byte[] bytes = getJpegBytesFromBitmap(rotatedBitmap, 1.0); // minimize data loss with 1.0 quality
 
+				//stream is closed by cordova later
 				is = new ByteArrayInputStream(bytes);
 			}
 		}
@@ -216,9 +214,9 @@ public class PhotoLibraryService {
 				}
 
 				queryLibrary(context, whereClause, (chunk, chunkNum, isLastChunk)
-						-> completion.run(chunk.size() == 1 ? chunk.get(0) : null, null));
+						-> completion.run(chunk.size() == 1 ? chunk.get(0) : null));
 			} catch (Exception e) {
-				completion.run(null, e);
+				completion.run(null);
 			}
 		});
 
@@ -249,7 +247,7 @@ public class PhotoLibraryService {
 
 	}
 
-	public class PictureAsStream {
+	public static class PictureAsStream {
 
 		public PictureAsStream(InputStream stream, String mimeType) {
 			this.stream = stream;
@@ -264,16 +262,16 @@ public class PhotoLibraryService {
 			return this.mimeType;
 		}
 
-		private InputStream stream;
-		private String mimeType;
+		private final InputStream stream;
+		private final String mimeType;
 
 	}
 
 	private static PhotoLibraryService instance = null;
 
-	private SimpleDateFormat dateFormatter;
+	private final SimpleDateFormat dateFormatter;
 
-	private Pattern dataURLPattern = Pattern.compile("^data:(.+?)/(.+?);base64,");
+	private final Pattern dataURLPattern = Pattern.compile("^data:(.+?)/(.+?);base64,");
 
 	private ArrayList<JSONObject> queryContentProvider(Context context, Uri collection, JSONObject columns, String whereClause) throws JSONException {
 
@@ -296,7 +294,7 @@ public class PhotoLibraryService {
 				columnValues.toArray(new String[columns.length()]),
 				whereClause, null, sortOrder);
 
-		final ArrayList<JSONObject> buffer = new ArrayList<JSONObject>();
+		final ArrayList<JSONObject> buffer = new ArrayList<>();
 
 		if (cursor.moveToFirst()) {
 			do {
@@ -420,7 +418,7 @@ public class PhotoLibraryService {
 				return null;
 
 			int index = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE);
-			if (cursor.moveToFirst()) {
+			if (cursor.moveToFirst() && index > 0) {
 				String mimeType = cursor.getString(index);
 				cursor.close();
 				return mimeType;
@@ -507,9 +505,8 @@ public class PhotoLibraryService {
 	private static int getImageOrientation(File imageFile) throws IOException {
 
 		ExifInterface exif = new ExifInterface(imageFile.getAbsolutePath());
-		int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
 
-		return orientation;
+		return exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
 
 	}
 
@@ -572,7 +569,7 @@ public class PhotoLibraryService {
 	private File getImageFileName(File albumDirectory, String extension) {
 		Calendar calendar = Calendar.getInstance();
 		String dateStr = calendar.get(Calendar.YEAR) +
-				"-" + calendar.get(Calendar.MONTH) +
+				"-" + (calendar.get(Calendar.MONTH) + 1) +
 				"-" + calendar.get(Calendar.DAY_OF_MONTH);
 		int i = 1;
 		File result;
@@ -598,11 +595,11 @@ public class PhotoLibraryService {
 
 	}
 
-	private Map<String, String> imageMimeToExtension = new HashMap<String, String>() {{
+	private final Map<String, String> imageMimeToExtension = new HashMap<String, String>() {{
 		put("jpeg", ".jpg");
 	}};
 
-	private Map<String, String> videMimeToExtension = new HashMap<String, String>() {{
+	private final Map<String, String> videMimeToExtension = new HashMap<String, String>() {{
 		put("quicktime", ".mov");
 		put("ogg", ".ogv");
 	}};
@@ -684,7 +681,7 @@ public class PhotoLibraryService {
 
 	public interface JSONObjectRunnable {
 
-		void run(JSONObject result, @Nullable Exception e);
+		void run(JSONObject result);
 
 	}
 
