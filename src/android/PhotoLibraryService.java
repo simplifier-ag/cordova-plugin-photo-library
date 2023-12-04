@@ -275,8 +275,8 @@ public class PhotoLibraryService {
 
 	private ArrayList<JSONObject> queryContentProvider(Context context, Uri collection, JSONObject columns, String whereClause) throws JSONException {
 
-		final ArrayList<String> columnNames = new ArrayList<String>();
-		final ArrayList<String> columnValues = new ArrayList<String>();
+		final ArrayList<String> columnNames = new ArrayList<>();
+		final ArrayList<String> columnValues = new ArrayList<>();
 
 		Iterator<String> iteratorFields = columns.keys();
 
@@ -289,47 +289,46 @@ public class PhotoLibraryService {
 
 		final String sortOrder = MediaStore.Images.Media.DATE_TAKEN + " DESC";
 
-		final Cursor cursor = context.getContentResolver().query(
+		final ArrayList<JSONObject> buffer = new ArrayList<>();
+		try (Cursor cursor = context.getContentResolver().query(
 				collection,
 				columnValues.toArray(new String[columns.length()]),
-				whereClause, null, sortOrder);
+				whereClause, null, sortOrder)) {
+			if (cursor == null)
+				return buffer;
 
-		final ArrayList<JSONObject> buffer = new ArrayList<>();
+			if (cursor.moveToFirst()) {
+				do {
+					JSONObject item = new JSONObject();
 
-		if (cursor.moveToFirst()) {
-			do {
-				JSONObject item = new JSONObject();
+					for (String column : columnNames) {
+						int columnIndex = cursor.getColumnIndex(columns.get(column).toString());
 
-				for (String column : columnNames) {
-					int columnIndex = cursor.getColumnIndex(columns.get(column).toString());
-
-					if (column.startsWith("int.")) {
-						item.put(column.substring(4), cursor.getInt(columnIndex));
-						if (column.substring(4).equals("width") && item.getInt("width") == 0) {
-							System.err.println("cursor: " + cursor.getInt(columnIndex));
+						if (column.startsWith("int.")) {
+							item.put(column.substring(4), cursor.getInt(columnIndex));
+							if (column.substring(4).equals("width") && item.getInt("width") == 0) {
+								System.err.println("cursor: " + cursor.getInt(columnIndex));
+							}
+						} else if (column.startsWith("float.")) {
+							item.put(column.substring(6), cursor.getFloat(columnIndex));
+						} else if (column.startsWith("date.")) {
+							long intDate = cursor.getLong(columnIndex);
+							Date date = new Date(intDate);
+							item.put(column.substring(5), dateFormatter.format(date));
+						} else {
+							item.put(column, cursor.getString(columnIndex));
 						}
-					} else if (column.startsWith("float.")) {
-						item.put(column.substring(6), cursor.getFloat(columnIndex));
-					} else if (column.startsWith("date.")) {
-						long intDate = cursor.getLong(columnIndex);
-						Date date = new Date(intDate);
-						item.put(column.substring(5), dateFormatter.format(date));
-					} else {
-						item.put(column, cursor.getString(columnIndex));
 					}
+					buffer.add(item);
+
+					// TODO: return partial result
+
 				}
-				buffer.add(item);
-
-				// TODO: return partial result
-
+				while (cursor.moveToNext());
 			}
-			while (cursor.moveToNext());
 		}
 
-		cursor.close();
-
 		return buffer;
-
 	}
 
 	private void queryLibrary(Context context, String whereClause, ChunkResultRunnable completion) throws JSONException {
