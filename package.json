@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/terikon/cordova-plugin-photo-library.git"
+    "url": "git+https://github.com/simplifier-ag/cordova-plugin-photo-library.git"
   },
   "author": {
     "name": "Roman Viskin",
