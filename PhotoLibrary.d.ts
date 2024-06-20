@@ -5,6 +5,8 @@ declare module PhotoLibraryCordova {
     getLibrary(success: (chunk: { library: LibraryItem[], isLastChunk: boolean }) => void, error: (err: any) => void, options?: GetLibraryOptions): void;
 
     requestAuthorization(success: () => void, error: (err: any) => void, options?: RequestAuthorizationOptions): void;
+    deletePhotosByAlbum(album: string, success: () => void, error: (err: any) => void): void;
+    getPhotosFromAlbum(album: string, success: (result: LibraryItem[]) => void, error: (err: any) => void): void;
 
     getAlbums(success: (result: AlbumItem[]) => void, error: (err:any) => void): void;
     isAuthorized(success: (result: boolean) => void, error: (err:any) => void): void;

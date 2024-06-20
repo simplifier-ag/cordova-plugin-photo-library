@@ -103,6 +103,29 @@ final class PhotoLibraryService {
 
     }
 
+
+    func deletePhotosByAlbum(_ albumTitle: String) {
+        var albumPhotoArray = self.getPhotosFromAlbum(albumTitle)
+        let toDeletePhotoIDArray = albumPhotoArray.compactMap { $0["id"] as? String }
+        self.deletePhotos(withLocalIdentifiers: toDeletePhotoIDArray)
+    }
+
+    func deletePhotos(withLocalIdentifiers identifiers: [String]) {
+        PHPhotoLibrary.shared().performChanges({
+            let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+            PHAssetChangeRequest.deleteAssets(assets)
+        }) { success, error in
+            if success {
+                // Photos deleted successfully
+                print("Photos deleted successfully")
+
+            } else {
+                print("An error occurred while deleting the photos:")
+                // An error occurred while deleting the photos. Handle the error appropriately.
+            }
+        }
+    }
+
     func getPhotosFromAlbum(_ albumTitle: String) -> [NSDictionary] {
 
         self.images = [NSDictionary]()
@@ -176,6 +199,9 @@ final class PhotoLibraryService {
 
         return self.images;
     }
+
+
+
 
     func getLibrary(_ options: PhotoLibraryGetLibraryOptions, completion: @escaping (_ result: [NSDictionary], _ chunkNum: Int, _ isLastChunk: Bool) -> Void) {
 
