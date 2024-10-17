@@ -142,7 +142,7 @@ photoLibrary.getThumbnailURL = function (photoIdOrLibraryItem, success, error, o
       if (window.WkWebView) {
         thumbnailURL = window.WkWebView.convertFilePath(thumbnailURL.replace("cdvphotolibrary://", "file://"));
       } else if (typeof device !== "undefined" && device.platform === "Android") {
-        thumbnailURL = window.location.origin + "/cdvphotolibrary/thumbnail/" + urlParams;
+        thumbnailURL = "http://localhost/cdvphotolibrary/thumbnail/" + urlParams;
       }
       success(thumbnailURL);
     }

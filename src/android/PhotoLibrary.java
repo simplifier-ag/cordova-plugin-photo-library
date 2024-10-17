@@ -178,7 +178,7 @@ public class PhotoLibrary extends CordovaPlugin {
 					Uri uri = Uri.parse(path);
 					LOG.d(TAG, "URI " + uri);
 					Uri remappedUri = remapUri(uri);
-					LOG.d(TAG, "RemappedUri " + uri);
+					LOG.d(TAG, "RemappedUri " + remappedUri);
 					if (remappedUri != null) {
 						try {
 							CordovaResourceApi.OpenForReadResult result = handleOpenForRead(remappedUri);

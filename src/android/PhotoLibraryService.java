@@ -379,7 +379,8 @@ public class PhotoLibraryService {
 			// photoId is in format "imageid;imageurl"
 			queryResult.put("id",
 					queryResult.get("id") + ";" +
-							Uri.fromFile(fp));
+							queryResult.get("nativeURL"));
+							//Uri.fromFile(fp));
 			//queryResult.getString("nativeURL"));
 
 			queryResult.remove("nativeURL"); // Not needed
