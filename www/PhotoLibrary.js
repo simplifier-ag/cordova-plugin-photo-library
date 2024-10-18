@@ -178,7 +178,7 @@ photoLibrary.getPhotoURL = function (photoIdOrLibraryItem, success, error, optio
         photoURL = window.WkWebView.convertFilePath(photoURL.replace("cdvphotolibrary://", "file://"));
         success(photoURL);
       } else if (typeof device !== "undefined" && device.platform === "Android") {
-        photoURL = window.location.origin + "/cdvphotolibrary/photo/" + urlParams;
+        photoURL = "http://localhost/cdvphotolibrary/photo/" + urlParams;
       }
       success(photoURL);
     }
