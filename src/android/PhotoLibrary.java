@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/** @noinspection CallToPrintStackTrace*/
 public class PhotoLibrary extends CordovaPlugin {
 	private static final String TAG = PhotoLibrary.class.getSimpleName();
 
@@ -50,43 +51,39 @@ public class PhotoLibrary extends CordovaPlugin {
 	public static final String ACTION_SAVE_VIDEO = "saveVideo";
 
 	public CallbackContext callbackContext;
-	private final static List<String>
-			storageReadPermissions,
-			storageWritePermissions,
-			imageReadPermissions,
-			imageWritePermissions,
-			videoReadPermissions,
-			videoWritePermissions;
+	private static final List<String> storageReadPermissions = new ArrayList<>();
+	private static final List<String> storageWritePermissions = new ArrayList<>();
+	private static final List<String> imageReadPermissions = new ArrayList<>();
+	private static final List<String> imageWritePermissions = new ArrayList<>();
+	private static final List<String> videoReadPermissions = new ArrayList<>();
+	private static final List<String> videoWritePermissions = new ArrayList<>();
 
 	static {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			imageReadPermissions.add(Manifest.permission.ACCESS_MEDIA_LOCATION);
+		}
+
 		if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-			storageReadPermissions = new ArrayList<>();
-			storageWritePermissions = new ArrayList<>();
 
-			imageReadPermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_IMAGES);
-			imageWritePermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_IMAGES);
+			imageReadPermissions.add(Manifest.permission.READ_MEDIA_IMAGES);
+			imageWritePermissions.add(Manifest.permission.READ_MEDIA_IMAGES);
 
-			videoReadPermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_VIDEO);
-			videoWritePermissions = Collections.singletonList(Manifest.permission.READ_MEDIA_VIDEO);
+			videoReadPermissions.add(Manifest.permission.READ_MEDIA_VIDEO);
+			videoWritePermissions.add(Manifest.permission.READ_MEDIA_VIDEO);
 
 		} else { //sdk < 33
 
-			storageReadPermissions = Collections.singletonList(Manifest.permission.READ_EXTERNAL_STORAGE);
-			storageWritePermissions = new ArrayList<String>(storageReadPermissions) {{
-				add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-			}};
+			storageReadPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+			storageWritePermissions.addAll(storageReadPermissions);
+			storageWritePermissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
 
-			imageReadPermissions = new ArrayList<>(storageReadPermissions);
-			imageWritePermissions = new ArrayList<String>() {{
-				addAll(imageReadPermissions);
-				addAll(storageWritePermissions);
-			}};
+			imageReadPermissions.addAll(storageReadPermissions);
+			imageWritePermissions.addAll(imageReadPermissions);
+			imageWritePermissions.addAll(storageWritePermissions);
 
-			videoReadPermissions = new ArrayList<>(storageReadPermissions);
-			videoWritePermissions = new ArrayList<String>() {{
-				addAll(videoReadPermissions);
-				addAll(storageWritePermissions);
-			}};
+			videoReadPermissions.addAll(storageReadPermissions);
+			videoWritePermissions.addAll(videoReadPermissions);
+			videoWritePermissions.addAll(storageWritePermissions);
 		}
 	}
 
@@ -125,6 +122,7 @@ public class PhotoLibrary extends CordovaPlugin {
 			} else if (ACTION_STOP_CACHING.equals(action)) {
 
 				// Nothing to do - it's ios only functionality
+				service.stopCaching();
 				callbackContext.success();
 				return true;
 
@@ -203,7 +201,6 @@ public class PhotoLibrary extends CordovaPlugin {
 				final double chunkTimeSec = options.getDouble("chunkTimeSec");
 				final boolean includeAlbumData = options.getBoolean("includeAlbumData");
 
-				//if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
 				if (isMissingPermissions(storageReadPermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
@@ -310,9 +307,29 @@ public class PhotoLibrary extends CordovaPlugin {
 			final JSONObject options = args.optJSONObject(0);
 			final boolean read = options.getBoolean("read");
 			final boolean write = options.getBoolean("write");
+			final boolean requestImages = true;//options.getBoolean("requestImages");
+			final boolean requestVideos = true;//options.getBoolean("requestVideos");
+			final ArrayList<String> requiredPermissions = new ArrayList<>();
+			if (requestImages) {
+				if (read)
+					requiredPermissions.addAll(imageReadPermissions);
+				else
+					requiredPermissions.addAll(imageWritePermissions);
+			}
 
-			if (read && isMissingPermissions(storageReadPermissions)
-					|| write && isMissingPermissions(storageWritePermissions)) {
+			if (requestVideos) {
+				if (read)
+					requiredPermissions.addAll(videoReadPermissions);
+				else
+					requiredPermissions.addAll(videoWritePermissions);
+			}
+
+			if (requiredPermissions.isEmpty()) {
+				callbackContext.success();
+				return;
+			}
+
+			if (isMissingPermissions(requiredPermissions)) {
 				requestAuthorization(read, write);
 			} else {
 				callbackContext.success();

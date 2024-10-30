@@ -14,6 +14,7 @@ import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.util.LruCache;
 
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaResourceApi;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/** @noinspection ALL*/
 public class PhotoLibraryService {
 	private CordovaResourceApi resourceApi;
 	Uri collection = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ?
@@ -49,8 +51,8 @@ public class PhotoLibraryService {
 
 
 	// TODO: implement cache
-	//int cacheSize = 4 * 1024 * 1024; // 4MB
-	//private LruCache<String, byte[]> imageCache = new LruCache<String, byte[]>(cacheSize);
+	int cacheSize = 4 * 1024 * 1024; // 4MB
+	private LruCache<String, byte[]> imageCache = new LruCache<String, byte[]>(cacheSize);
 
 	protected PhotoLibraryService() {
 		dateFormatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());
@@ -85,13 +87,18 @@ public class PhotoLibraryService {
 			put("title", MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME);
 		}};
 
-		return queryContentProvider(context, collection, columns, "1) GROUP BY 1,(2");
+		return queryContentProvider(context, collection, columns, "1) GROUP BY 1,2)");
 
 	}
 
 	public PictureData getThumbnail(Context context, String photoId, int thumbnailWidth, int thumbnailHeight, double quality) throws IOException {
 
 		Bitmap bitmap = null;
+
+		byte[] cachedBytes = imageCache.get(photoId);
+		if (cachedBytes != null) {
+			return new PictureData(cachedBytes, "image/jpeg");
+		}
 
 		String imageURL = getImageURL(photoId);
 		File imageFile = new File(imageURL);
@@ -139,12 +146,11 @@ public class PhotoLibraryService {
 				rotatedBitmap.recycle();
 			}
 
-			// TODO: cache bytes for performance
-
 			byte[] bytes = getJpegBytesFromBitmap(thumbnailBitmap, quality);
 			String mimeType = "image/jpeg";
 
 			thumbnailBitmap.recycle();
+			imageCache.put(photoId, bytes);
 
 			return new PictureData(bytes, mimeType);
 
@@ -310,7 +316,32 @@ public class PhotoLibraryService {
 								System.err.println("cursor: " + cursor.getInt(columnIndex));
 							}
 						} else if (column.startsWith("float.")) {
-							item.put(column.substring(6), cursor.getFloat(columnIndex));
+							if (column.equals("float.latitude") || column.equals("float.longitude")) {
+								// Get image path from cursor
+								int dataColumnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA);
+								String imagePath = cursor.getString(dataColumnIndex);
+
+								try {
+									ExifInterface exifInterface = new ExifInterface(imagePath);
+									float[] latLong = new float[2];
+
+									if (exifInterface.getLatLong(latLong)) {
+										if (column.equals("float.latitude")) {
+											item.put(column.substring(6), latLong[0]);
+										}
+										if (column.equals("float.longitude")) {
+											item.put(column.substring(6), latLong[1]);
+										}
+									} else {
+
+										item.put(column.substring(6), 0.0f);
+									}
+
+								} catch (IOException e) {
+									e.printStackTrace();
+									item.put(column.substring(6), 0.0f);
+								}
+							}
 						} else if (column.startsWith("date.")) {
 							long intDate = cursor.getLong(columnIndex);
 							Date date = new Date(intDate);
@@ -665,6 +696,10 @@ public class PhotoLibraryService {
 
 		addFileToMediaLibrary(context, targetFile, completion);
 
+	}
+
+	public void stopCaching() {
+		imageCache.evictAll();
 	}
 
 	public interface ChunkResultRunnable {
