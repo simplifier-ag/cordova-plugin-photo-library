@@ -49,8 +49,6 @@ public class PhotoLibraryService {
 			MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) :
 			MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
 
-
-	// TODO: implement cache
 	int cacheSize = 4 * 1024 * 1024; // 4MB
 	private LruCache<String, byte[]> imageCache = new LruCache<String, byte[]>(cacheSize);
 
@@ -87,7 +85,7 @@ public class PhotoLibraryService {
 			put("title", MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME);
 		}};
 
-		return queryContentProvider(context, collection, columns, "1) GROUP BY 1,2)");
+		return queryContentProvider(context, collection, columns, "1) GROUP BY 1,(2");
 
 	}
 
