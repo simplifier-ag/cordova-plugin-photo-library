@@ -85,7 +85,11 @@ public class PhotoLibraryService {
 			put("title", MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME);
 		}};
 
-		return queryContentProvider(context, collection, columns, "1) GROUP BY 1,(2");
+		return queryContentProvider(
+				context,
+				collection,
+				columns,
+				String.format("%s IS NOT NULL) GROUP BY (%s", MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_ID));
 
 	}
 
@@ -319,25 +323,28 @@ public class PhotoLibraryService {
 								int dataColumnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA);
 								String imagePath = cursor.getString(dataColumnIndex);
 
-								try {
-									ExifInterface exifInterface = new ExifInterface(imagePath);
-									float[] latLong = new float[2];
+								float latlong = cursor.getFloat(columnIndex);
+								if (latlong > 0.0) { //location data found in meta data
+									item.put(column.substring(6), latlong);
+								} else { //search for location data in file
+									try {
+										ExifInterface exifInterface = new ExifInterface(imagePath);
+										float[] latLong = new float[2];
 
-									if (exifInterface.getLatLong(latLong)) {
-										if (column.equals("float.latitude")) {
-											item.put(column.substring(6), latLong[0]);
+										if (exifInterface.getLatLong(latLong)) {
+											if (column.equals("float.latitude")) {
+												item.put(column.substring(6), latLong[0]);
+											}
+											if (column.equals("float.longitude")) {
+												item.put(column.substring(6), latLong[1]);
+											}
+										} else {
+											item.put(column.substring(6), 0.0f);
 										}
-										if (column.equals("float.longitude")) {
-											item.put(column.substring(6), latLong[1]);
-										}
-									} else {
-
+									} catch (IOException e) {
+										e.printStackTrace();
 										item.put(column.substring(6), 0.0f);
 									}
-
-								} catch (IOException e) {
-									e.printStackTrace();
-									item.put(column.substring(6), 0.0f);
 								}
 							}
 						} else if (column.startsWith("date.")) {

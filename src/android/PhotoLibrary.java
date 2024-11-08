@@ -28,7 +28,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /** @noinspection CallToPrintStackTrace*/
@@ -232,8 +231,6 @@ public class PhotoLibrary extends CordovaPlugin {
 	private void getAlbums() {
 		cordova.getThreadPool().execute(() -> {
 			try {
-
-				//if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
 				if (isMissingPermissions(storageReadPermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
@@ -251,29 +248,26 @@ public class PhotoLibrary extends CordovaPlugin {
 	}
 
 	private void getThumbnail(JSONArray args) {
-		cordova.getThreadPool().execute(new Runnable() {
-			public void run() {
-				try {
+		cordova.getThreadPool().execute(() -> {
+			try {
 
-					final String photoId = args.getString(0);
-					final JSONObject options = args.optJSONObject(1);
-					final int thumbnailWidth = options.getInt("thumbnailWidth");
-					final int thumbnailHeight = options.getInt("thumbnailHeight");
-					final double quality = options.getDouble("quality");
+				final String photoId = args.getString(0);
+				final JSONObject options = args.optJSONObject(1);
+				final int thumbnailWidth = options.getInt("thumbnailWidth");
+				final int thumbnailHeight = options.getInt("thumbnailHeight");
+				final double quality = options.getDouble("quality");
 
-					//if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
-					if (isMissingPermissions(imageReadPermissions)) {
-						callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
-						return;
-					}
-
-					PhotoLibraryService.PictureData thumbnail = service.getThumbnail(getContext(), photoId, thumbnailWidth, thumbnailHeight, quality);
-					callbackContext.sendPluginResult(createMultipartPluginResult(PluginResult.Status.OK, thumbnail));
-
-				} catch (Exception e) {
-					e.printStackTrace();
-					callbackContext.error(e.getMessage());
+				if (isMissingPermissions(imageReadPermissions)) {
+					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
+					return;
 				}
+
+				PhotoLibraryService.PictureData thumbnail = service.getThumbnail(getContext(), photoId, thumbnailWidth, thumbnailHeight, quality);
+				callbackContext.sendPluginResult(createMultipartPluginResult(PluginResult.Status.OK, thumbnail));
+
+			} catch (Exception e) {
+				e.printStackTrace();
+				callbackContext.error(e.getMessage());
 			}
 		});
 	}
@@ -285,7 +279,6 @@ public class PhotoLibrary extends CordovaPlugin {
 
 				final String photoId = args.getString(0);
 
-				//if (!cordova.hasPermission(READ_EXTERNAL_STORAGE)) {
 				if (isMissingPermissions(imageReadPermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
@@ -303,12 +296,11 @@ public class PhotoLibrary extends CordovaPlugin {
 
 	private void requestAuthorization(JSONArray args) {
 		try {
-
 			final JSONObject options = args.optJSONObject(0);
 			final boolean read = options.getBoolean("read");
 			final boolean write = options.getBoolean("write");
-			final boolean requestImages = true;//options.getBoolean("requestImages");
-			final boolean requestVideos = true;//options.getBoolean("requestVideos");
+			final boolean requestImages = options.optBoolean("requestImages", true);
+			final boolean requestVideos = options.optBoolean("requestVideos", true);
 			final ArrayList<String> requiredPermissions = new ArrayList<>();
 			if (requestImages) {
 				if (read)
@@ -507,7 +499,7 @@ public class PhotoLibrary extends CordovaPlugin {
 		cordova.requestPermissions(this, REQUEST_AUTHORIZATION_REQ_CODE, permissions.toArray(new String[0]));
 	}
 
-	private static JSONArray createGetAlbumsResult(ArrayList<JSONObject> albums) throws JSONException {
+	private static JSONArray createGetAlbumsResult(ArrayList<JSONObject> albums) {
 		return new JSONArray(albums);
 	}
 
@@ -527,7 +519,7 @@ public class PhotoLibrary extends CordovaPlugin {
 			}
 		}
 
-		return missingPermissions.size() > 0;
+		return !missingPermissions.isEmpty();
 	}
 
 }
