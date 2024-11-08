@@ -313,11 +313,6 @@ public class PhotoLibraryService {
 				collection,
 				columnValues.toArray(new String[columns.length()]),
 				bundle,null)) {
-//			collection,
-//				columnValues.toArray(new String[columns.length()]),
-//				whereClause,
-//				null,
-//				sortOrder)) {
 			if (cursor == null)
 				return buffer;
 
@@ -384,7 +379,7 @@ public class PhotoLibraryService {
 	}
 
 	private void queryLibrary(Context context, Bundle bundle, ChunkResultRunnable completion) throws JSONException {
-		queryLibrary(context, 0, 0, false, 0, bundle, completion);
+		queryLibrary(context, 0, 0, false, -1, bundle, completion);
 	}
 
 	private void queryLibrary(Context context, int itemsInChunk, double chunkTimeSec, boolean includeAlbumData, int maxItems, Bundle bundle, ChunkResultRunnable completion)
@@ -437,7 +432,7 @@ public class PhotoLibraryService {
 			queryResult.put("id",
 					queryResult.get("id") + ";" +
 							queryResult.get("nativeURL"));
-							//Uri.fromFile(fp));
+			//Uri.fromFile(fp));
 			//queryResult.getString("nativeURL"));
 
 			queryResult.remove("nativeURL"); // Not needed

@@ -457,7 +457,7 @@ public class PhotoLibrary extends CordovaPlugin {
 	}
 
 	@Override
-	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
+	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
 		for (int r : grantResults) {
 			if (r == PackageManager.PERMISSION_DENIED) {
 				this.callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
