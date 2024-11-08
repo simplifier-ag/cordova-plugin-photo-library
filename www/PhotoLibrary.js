@@ -29,7 +29,7 @@ photoLibrary.getLibrary = function (success, error, options) {
     includeAlbumData: options.includeAlbumData || false,
     includeCloudData: options.includeCloudData !== undefined ? options.includeCloudData : true,
     includeVideos: options.includeVideos || false,
-    maxItems: options.maxItems || 0
+    maxItems: options.maxItems || ( options.maxItems <= 0 ? -1 : options.maxItems )
   };
 
   // queue that keeps order of async processing
@@ -346,6 +346,10 @@ var getRequestAuthenticationOptionsWithDefaults = function (options) {
 };
 
 var processLibrary = function (library, success, options) {
+  if (!library || library.length < 1) {
+    success(library);
+    return;
+  }
 
   parseDates(library);
 

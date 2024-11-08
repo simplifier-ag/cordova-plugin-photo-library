@@ -1,5 +1,6 @@
 package com.terikon.cordova.photolibrary;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -10,11 +11,14 @@ import android.media.MediaScannerConnection;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.LruCache;
+
+import androidx.annotation.Nullable;
 
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaResourceApi;
@@ -70,14 +74,11 @@ public class PhotoLibraryService {
 	}
 
 	public void getLibrary(Context context, PhotoLibraryGetLibraryOptions options, ChunkResultRunnable completion) throws JSONException {
-
-		String whereClause = "";
-		queryLibrary(context, options.itemsInChunk, options.chunkTimeSec, options.includeAlbumData, whereClause, completion);
+		queryLibrary(context, options.itemsInChunk, options.chunkTimeSec, options.includeAlbumData, options.maxItems, null, completion);
 
 	}
 
 	public ArrayList<JSONObject> getAlbums(Context context) throws JSONException {
-
 		// All columns here: https://developer.android.com/reference/android/provider/MediaStore.Images.ImageColumns.html,
 		// https://developer.android.com/reference/android/provider/MediaStore.MediaColumns.html
 		JSONObject columns = new JSONObject() {{
@@ -85,12 +86,15 @@ public class PhotoLibraryService {
 			put("title", MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME);
 		}};
 
+		Bundle bundle = new Bundle();
+		bundle.putString(ContentResolver.QUERY_ARG_SQL_GROUP_BY, MediaStore.Images.Media.BUCKET_ID);
+
 		return queryContentProvider(
 				context,
 				collection,
 				columns,
-				String.format("%s IS NOT NULL) GROUP BY (%s", MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_ID));
-
+				-1,
+				bundle );
 	}
 
 	public PictureData getThumbnail(Context context, String photoId, int thumbnailWidth, int thumbnailHeight, double quality) throws IOException {
@@ -213,15 +217,15 @@ public class PhotoLibraryService {
 		saveMedia(context, cordova, url, album, imageMimeToExtension, filePath -> {
 			try {
 				// Find the saved image in the library and return it as libraryItem
-				String whereClause;
 
+				Bundle bundle = new Bundle();
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-					whereClause = MediaStore.MediaColumns._ID + " = " + (filePath.substring(filePath.lastIndexOf("/") + 1));
+					bundle.putString(ContentResolver.QUERY_ARG_SQL_SELECTION, MediaStore.MediaColumns._ID + " = " + (filePath.substring(filePath.lastIndexOf("/") + 1)));
 				} else {
-					whereClause = MediaStore.MediaColumns.DATA + " = \"" + filePath + "\"";
+					bundle.putString(MediaStore.MediaColumns.DATA, filePath);
 				}
 
-				queryLibrary(context, whereClause, (chunk, chunkNum, isLastChunk)
+				queryLibrary(context, bundle, (chunk, chunkNum, isLastChunk)
 						-> completion.run(chunk.size() == 1 ? chunk.get(0) : null));
 			} catch (Exception e) {
 				completion.run(null);
@@ -281,7 +285,7 @@ public class PhotoLibraryService {
 
 	private final Pattern dataURLPattern = Pattern.compile("^data:(.+?)/(.+?);base64,");
 
-	private ArrayList<JSONObject> queryContentProvider(Context context, Uri collection, JSONObject columns, String whereClause) throws JSONException {
+	private ArrayList<JSONObject> queryContentProvider(Context context, Uri collection, JSONObject columns, int limit, @Nullable Bundle bundle) throws JSONException {
 
 		final ArrayList<String> columnNames = new ArrayList<>();
 		final ArrayList<String> columnValues = new ArrayList<>();
@@ -295,13 +299,25 @@ public class PhotoLibraryService {
 			columnValues.add("" + columns.getString(column));
 		}
 
-		final String sortOrder = MediaStore.Images.Media.DATE_TAKEN + " DESC";
+		if (bundle == null) {
+			bundle = new Bundle();
+		}
+		bundle.putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit);
+		bundle.putInt(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER , android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING);
+		bundle.putStringArray(
+				android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+				new String[]{MediaStore.Images.Media.DATE_TAKEN});
 
 		final ArrayList<JSONObject> buffer = new ArrayList<>();
 		try (Cursor cursor = context.getContentResolver().query(
 				collection,
 				columnValues.toArray(new String[columns.length()]),
-				whereClause, null, sortOrder)) {
+				bundle,null)) {
+//			collection,
+//				columnValues.toArray(new String[columns.length()]),
+//				whereClause,
+//				null,
+//				sortOrder)) {
 			if (cursor == null)
 				return buffer;
 
@@ -367,11 +383,11 @@ public class PhotoLibraryService {
 		return buffer;
 	}
 
-	private void queryLibrary(Context context, String whereClause, ChunkResultRunnable completion) throws JSONException {
-		queryLibrary(context, 0, 0, false, whereClause, completion);
+	private void queryLibrary(Context context, Bundle bundle, ChunkResultRunnable completion) throws JSONException {
+		queryLibrary(context, 0, 0, false, 0, bundle, completion);
 	}
 
-	private void queryLibrary(Context context, int itemsInChunk, double chunkTimeSec, boolean includeAlbumData, String whereClause, ChunkResultRunnable completion)
+	private void queryLibrary(Context context, int itemsInChunk, double chunkTimeSec, boolean includeAlbumData, int maxItems, Bundle bundle, ChunkResultRunnable completion)
 			throws JSONException {
 
 		// All columns here: https://developer.android.com/reference/android/provider/MediaStore.Images.ImageColumns.html,
@@ -388,12 +404,17 @@ public class PhotoLibraryService {
 			put("nativeURL", MediaStore.MediaColumns.DATA); // will not be returned to javascript
 		}};
 
-		final ArrayList<JSONObject> queryResults = queryContentProvider(context, collection, columns, whereClause);
+		final ArrayList<JSONObject> queryResults = queryContentProvider(context, collection, columns, maxItems, bundle);
 
 		ArrayList<JSONObject> chunk = new ArrayList<JSONObject>();
 
 		long chunkStartTime = SystemClock.elapsedRealtime();
 		int chunkNum = 0;
+
+		if (queryResults.size() <= 0) {
+			completion.run(new ArrayList<>(), 0, true);
+			return;
+		}
 
 		for (int i = 0; i < queryResults.size(); i++) {
 			JSONObject queryResult = queryResults.get(i);
@@ -686,7 +707,7 @@ public class PhotoLibraryService {
 
 			if (url.startsWith("file:///android_asset/")) {
 				String assetUrl = url.replace("file:///android_asset/", "");
-				is = cordova.getActivity().getApplicationContext().getAssets().open(assetUrl);
+				is = cordova.getContext().getApplicationContext().getAssets().open(assetUrl);
 			} else {
 				is = new URL(url).openStream();
 			}

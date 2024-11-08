@@ -30,7 +30,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-/** @noinspection CallToPrintStackTrace*/
+/**
+ * @noinspection CallToPrintStackTrace
+ */
 public class PhotoLibrary extends CordovaPlugin {
 	private static final String TAG = PhotoLibrary.class.getSimpleName();
 
@@ -119,8 +121,6 @@ public class PhotoLibrary extends CordovaPlugin {
 				return true;
 
 			} else if (ACTION_STOP_CACHING.equals(action)) {
-
-				// Nothing to do - it's ios only functionality
 				service.stopCaching();
 				callbackContext.success();
 				return true;
@@ -199,13 +199,17 @@ public class PhotoLibrary extends CordovaPlugin {
 				final int itemsInChunk = options.getInt("itemsInChunk");
 				final double chunkTimeSec = options.getDouble("chunkTimeSec");
 				final boolean includeAlbumData = options.getBoolean("includeAlbumData");
+				int limit = options.optInt("maxItems", -1);
+				if (limit <= 0) { //0 wont return any result columns
+					limit = -1;
+				}
 
 				if (isMissingPermissions(storageReadPermissions)) {
 					callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
 					return;
 				}
 
-				PhotoLibraryGetLibraryOptions getLibraryOptions = new PhotoLibraryGetLibraryOptions(itemsInChunk, chunkTimeSec, includeAlbumData);
+				PhotoLibraryGetLibraryOptions getLibraryOptions = new PhotoLibraryGetLibraryOptions(itemsInChunk, chunkTimeSec, includeAlbumData, limit);
 
 				service.getLibrary(getContext(), getLibraryOptions, (library, chunkNum, isLastChunk) -> {
 					try {
@@ -303,17 +307,13 @@ public class PhotoLibrary extends CordovaPlugin {
 			final boolean requestVideos = options.optBoolean("requestVideos", true);
 			final ArrayList<String> requiredPermissions = new ArrayList<>();
 			if (requestImages) {
-				if (read)
-					requiredPermissions.addAll(imageReadPermissions);
-				else
-					requiredPermissions.addAll(imageWritePermissions);
+				if (read) requiredPermissions.addAll(imageReadPermissions);
+				else requiredPermissions.addAll(imageWritePermissions);
 			}
 
 			if (requestVideos) {
-				if (read)
-					requiredPermissions.addAll(videoReadPermissions);
-				else
-					requiredPermissions.addAll(videoWritePermissions);
+				if (read) requiredPermissions.addAll(videoReadPermissions);
+				else requiredPermissions.addAll(videoWritePermissions);
 			}
 
 			if (requiredPermissions.isEmpty()) {
@@ -344,8 +344,7 @@ public class PhotoLibrary extends CordovaPlugin {
 					return;
 				}
 
-				service.saveImage(getContext(), cordova, url, album, result
-						-> callbackContext.success(result));
+				service.saveImage(getContext(), cordova, url, album, result -> callbackContext.success(result));
 
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -384,8 +383,7 @@ public class PhotoLibrary extends CordovaPlugin {
 		String host = origUri.getHost();
 		String path = origUri.getPath();
 
-		if (host == null || path == null)
-			throw new FileNotFoundException("host unknown");
+		if (host == null || path == null) throw new FileNotFoundException("host unknown");
 
 		boolean isThumbnail = host.equalsIgnoreCase("thumbnail") && path.isEmpty();
 		boolean isPhoto = host.equalsIgnoreCase("photo") && path.isEmpty();
@@ -448,8 +446,18 @@ public class PhotoLibrary extends CordovaPlugin {
 
 	@Override
 	public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
-		super.onRequestPermissionResult(requestCode, permissions, grantResults);
+		for (int r : grantResults) {
+			if (r == PackageManager.PERMISSION_DENIED) {
+				this.callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
+				return;
+			}
+		}
 
+		this.callbackContext.success();
+	}
+
+	@Override
+	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) throws JSONException {
 		for (int r : grantResults) {
 			if (r == PackageManager.PERMISSION_DENIED) {
 				this.callbackContext.error(PhotoLibraryService.PERMISSION_ERROR);
@@ -465,9 +473,7 @@ public class PhotoLibrary extends CordovaPlugin {
 	private PhotoLibraryService service;
 
 	private Context getContext() {
-
-		return this.cordova.getActivity().getApplicationContext();
-
+		return this.cordova.getContext().getApplicationContext();
 	}
 
 	private PluginResult createMultipartPluginResult(PluginResult.Status status, PhotoLibraryService.PictureData pictureData) throws JSONException {
