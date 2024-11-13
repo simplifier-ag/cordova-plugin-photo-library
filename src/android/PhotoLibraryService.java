@@ -316,8 +316,11 @@ public class PhotoLibraryService {
 			if (cursor == null)
 				return buffer;
 
+			int count = 0;
+
 			if (cursor.moveToFirst()) {
 				do {
+
 					JSONObject item = new JSONObject();
 
 					for (String column : columnNames) {
@@ -369,6 +372,11 @@ public class PhotoLibraryService {
 					buffer.add(item);
 
 					// TODO: return partial result
+
+					count++;
+					if (limit > 0 && count >= limit) { // Limit reached
+						break;
+					}
 
 				}
 				while (cursor.moveToNext());
