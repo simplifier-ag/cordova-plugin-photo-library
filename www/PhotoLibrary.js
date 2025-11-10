@@ -337,8 +337,8 @@ var getRequestAuthenticationOptionsWithDefaults = function (options) {
   }
 
   options = {
-    read: options.read || true,
-    write: options.write || false,
+    read: typeof options.read === "undefined" ? true : options.read,
+    write: typeof options.write === "undefined" ? false : options.write,
   };
 
   return options;

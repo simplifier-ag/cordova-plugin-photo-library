@@ -66,12 +66,6 @@ public class PhotoLibrary extends CordovaPlugin {
 
 		if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
-			imageReadPermissions.add(Manifest.permission.READ_MEDIA_IMAGES);
-			imageWritePermissions.add(Manifest.permission.READ_MEDIA_IMAGES);
-
-			videoReadPermissions.add(Manifest.permission.READ_MEDIA_VIDEO);
-			videoWritePermissions.add(Manifest.permission.READ_MEDIA_VIDEO);
-
 		} else { //sdk < 33
 
 			storageReadPermissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
