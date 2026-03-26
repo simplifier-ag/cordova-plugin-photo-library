@@ -103,6 +103,18 @@ photoLibrary.getPhotosFromAlbum = function (albumTitle, success, error) {
 
 };
 
+photoLibrary.deletePhotosByAlbum = function (albumTitle, success, error) {
+
+  cordova.exec(
+    function (result) {
+      success(result);
+    },
+    error,
+    'PhotoLibrary',
+    'deletePhotosByAlbum', [albumTitle]
+  );
+};
+
 photoLibrary.isAuthorized = function (success, error) {
 
   cordova.exec(

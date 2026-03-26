@@ -3,9 +3,9 @@ import Photos
 import WebKit
 
 @objc(PhotoLibrary) class PhotoLibrary : CDVPlugin {
-    
+
     var interceptor: PhotoLibraryInterceptor?
-    
+
     lazy var concurrentQueue: DispatchQueue = DispatchQueue(label: "photo-library.queue.plugin", qos: DispatchQoS.utility, attributes: [.concurrent])
 
     override func pluginInitialize() {
@@ -17,12 +17,12 @@ import WebKit
         // self.service.stopCaching()
         NSLog("-- MEMORY WARNING --")
     }
-    
+
     @objc func overrideSchemeTask(_ urlSchemeTask: WKURLSchemeTask?) -> Bool {
         guard let urlSchemeTask = urlSchemeTask else {
             return false
         }
-        
+
         return interceptor?.handleSchemeTask(urlSchemeTask) ?? false
     }
 
@@ -104,11 +104,20 @@ import WebKit
         }
     }
 
+
+    @objc(deletePhotosByAlbum:) func deletePhotosByAlbum(_ command: CDVInvokedUrlCommand) {
+        concurrentQueue.async {
+            let service = PhotoLibraryService.instance
+            let albumTitle = command.arguments[0] as! String
+            service.deletePhotosByAlbum(albumTitle);
+            let pluginResult = CDVPluginResult(status: CDVCommandStatus_OK)
+            self.commandDelegate!.send(pluginResult, callbackId: command.callbackId    )
+        }
+    }
+
     @objc(getPhotosFromAlbum:) func getPhotosFromAlbum(_ command: CDVInvokedUrlCommand) {
-        print("C getPhotosFromAlbum 0");
         concurrentQueue.async {
 
-            print("C getPhotosFromAlbum 1");
 
             if PHPhotoLibrary.authorizationStatus() != .authorized {
                 let pluginResult = CDVPluginResult(status: CDVCommandStatus_ERROR, messageAs: PhotoLibraryService.PERMISSION_ERROR)
@@ -116,7 +125,6 @@ import WebKit
                 return
             }
 
-            print("C getPhotosFromAlbum 2");
 
             let service = PhotoLibraryService.instance
 
@@ -124,7 +132,6 @@ import WebKit
 
             let photos = service.getPhotosFromAlbum(albumTitle);
 
-            print("C getPhotosFromAlbum 3");
 
             let pluginResult = CDVPluginResult(status: CDVCommandStatus_OK, messageAs: photos)
             self.commandDelegate!.send(pluginResult, callbackId: command.callbackId)
